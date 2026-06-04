@@ -126,7 +126,9 @@ class PlayerScraper:
 
         # Find the header section - usually contains seed, rating, nationality info
         # Get text from the top portion of the page before "Games" section
-        header_section = soup.find(["section", "div"], class_=["profile", "player-header", "header"])
+        header_section = soup.find(
+            ["section", "div"], class_=["profile", "player-header", "header"]
+        )
         if not header_section:
             # Fallback: get first significant text block
             header_section = soup
@@ -144,7 +146,9 @@ class PlayerScraper:
             info["rating"] = rating_match.group(1)
 
         # Extract nationality (usually a 3-letter code after rating)
-        nationality_match = re.search(r"Rating:\s*\d+\s*•?\s*([A-Z]{3})\b", header_text, re.IGNORECASE)
+        nationality_match = re.search(
+            r"Rating:\s*\d+\s*•?\s*([A-Z]{3})\b", header_text, re.IGNORECASE
+        )
         if not nationality_match:
             # Alternative: just find any 3-letter code
             nationality_match = re.search(r"\b([A-Z]{3})\b", header_text)
@@ -153,7 +157,9 @@ class PlayerScraper:
 
         # Find the final standing section (1st, 26-10-0, +1847)
         # Look for place (ordinal numbers)
-        place_match = re.search(r"(\d+)(?:st|nd|rd|th)\s+(?:Place|place)", header_text, re.IGNORECASE)
+        place_match = re.search(
+            r"(\d+)(?:st|nd|rd|th)\s+(?:Place|place)", header_text, re.IGNORECASE
+        )
         if place_match:
             place_num = place_match.group(1)
             place_map = {"1": "1st", "2": "2nd", "3": "3rd"}
@@ -162,7 +168,9 @@ class PlayerScraper:
         # Extract record (W-L-D format) - look for pattern like 26-10-0
         record_match = re.search(r"(\d+)-(\d+)-(\d+)", header_text)
         if record_match:
-            info["record"] = f"{record_match.group(1)}-{record_match.group(2)}-{record_match.group(3)}"
+            info["record"] = (
+                f"{record_match.group(1)}-{record_match.group(2)}-{record_match.group(3)}"
+            )
 
         # Extract spread - look for a large spread value (3+ digits) in the header
         # Spreads are typically large numbers like +1847, +1500, -1200, etc.
@@ -326,7 +334,7 @@ if __name__ == "__main__":
     # scraper.scrape_multiple_players([1, 2, 3, 4, 5])
 
     # Scrape all players
-    scraper.scrape_all_players(total_players=43)
+    scraper.scrape_all_players(total_players=88)
 
     # Export summary of all players
     scraper.export_all_players_summary()
