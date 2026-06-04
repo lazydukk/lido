@@ -16,7 +16,7 @@ class PlayerScraper:
 
     BASE_URL = "https://causeway-challenge.com/division-A/players"
 
-    def __init__(self, output_dir: str = "causeway_2026_data_test01/players"):
+    def __init__(self, output_dir: str = "causeway_2026_data/players"):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.session = requests.Session()
@@ -72,7 +72,7 @@ class PlayerScraper:
         logger.info(f"Rating: {header_info.get('rating')}")
         logger.info(f"Nationality: {header_info.get('nationality')}")
         logger.info(
-            f"Final Standing: {header_info.get('place')} | {header_info.get('record')} | {header_info.get('spread')}"
+            f"Final Standing: {header_info.get('final_standing')} | {header_info.get('record')} | {header_info.get('spread')}"
         )
 
         # Add to players summary list
@@ -93,8 +93,7 @@ class PlayerScraper:
     def _extract_player_name(self, soup: BeautifulSoup) -> Optional[str]:
         """Extract player name from page"""
         # Look for h1 tag or main heading
-        # edit: look for player-title; class name related to h1 tag
-        h1 = soup.find("player-title")
+        h1 = soup.find("h1")
         if h1:
             return h1.text.strip()
 
@@ -162,10 +161,16 @@ class PlayerScraper:
                 f"{record_match.group(1)}-{record_match.group(2)}-{record_match.group(3)}"
             )
 
-        # Extract spread
-        spread_match = re.search(r"([\+\-]\d+)", full_text)
+        # Extract spread - get the final/total spread (not individual game spreads)
+        # Look for the spread value near "Spread" label in header
+        spread_match = re.search(r"Spread[:\s]+([\+\-]\d+)", full_text, re.IGNORECASE)
         if spread_match:
             info["spread"] = spread_match.group(1)
+        else:
+            # Fallback: try to find any spread in context
+            spread_fallback = re.search(r"([\+\-]\d+)", full_text)
+            if spread_fallback:
+                info["spread"] = spread_fallback.group(1)
 
         return info
 
@@ -221,15 +226,14 @@ class PlayerScraper:
             # Extract scores (e.g., "475-434")
             score_match = re.search(r"(\d+)\s*-\s*(\d+)", row_text)
             if score_match:
-                player_score = score_match.group(1)
-                opponent_score = score_match.group(2)
+                player_score = int(score_match.group(1))
+                opponent_score = int(score_match.group(2))
+                # Calculate spread as the difference (positive for wins, negative for losses)
+                spread = player_score - opponent_score
             else:
                 player_score = ""
                 opponent_score = ""
-
-            # Extract spread
-            spread_match = re.search(r"([\+\-]\d+)", row_text)
-            spread = spread_match.group(1).strip() if spread_match else ""
+                spread = ""
 
             # Extract YouTube link
             youtube_link = ""
