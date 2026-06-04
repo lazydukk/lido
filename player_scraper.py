@@ -170,22 +170,28 @@ class PlayerScraper:
         # Extract record (W-L-D format) - look for pattern like 26-10-0
         record_match = re.search(r"(\d+)-(\d+)-(\d+)", header_text)
         if record_match:
-<<<<<<< HEAD
-            info["record"] = (
-                f"{record_match.group(1)}-{record_match.group(2)}-{record_match.group(3)}"
-            )
-=======
             info["wins"] = record_match.group(1)
             info["losses"] = record_match.group(2)
             info["draws"] = record_match.group(3)
->>>>>>> 89acc53ff6f91eeaa7c8ec8317f61feef53d32bf
 
-        # Extract spread - look for a large spread value (3+ digits) in the header
-        # Spreads are typically large numbers like +1847, +1500, -1200, etc.
-        # Pattern: look for +/- followed by 3 or more digits
-        spread_match = re.search(r"([\+\-]\d{3,})", header_text)
+        # Extract spread - look for spread values (2+ digits to catch edge cases)
+        # First try 4+ digits (most common: +1847, +1500, -1200)
+        # Then try 3+ digits (less common: +123, -456)
+        # Then try 2+ digits (edge case: +10, -99)
+        # But prioritize the one closest to record/standing info to avoid game spreads
+        spread_match = re.search(r"([\+\-]\d{2,})", header_text)
         if spread_match:
-            info["spread"] = spread_match.group(1)
+            # Get all matches and take the first large one (most likely tournament spread)
+            # or the one with 3+ digits if available
+            all_spreads = re.findall(r"([\+\-]\d{2,})", header_text)
+
+            # Prioritize spreads with 3+ digits
+            large_spreads = [s for s in all_spreads if len(s) > 3]  # +/- plus 3+ digits
+            if large_spreads:
+                info["spread"] = large_spreads[0]
+            elif all_spreads:
+                # If no large spreads, use the first one found (likely nearest to standing info)
+                info["spread"] = all_spreads[0]
 
         return info
 
@@ -301,6 +307,7 @@ class PlayerScraper:
     ) -> Path:
         """
         Export all scraped player summary data to a single CSV file
+        Sorted by: wins (desc) > draws (desc) > spread (desc)
 
         Columns: seed | name | nationality | rating | final_standing | wins | losses | draws | spread
         """
@@ -310,6 +317,21 @@ class PlayerScraper:
 
         # Create DataFrame
         df = pd.DataFrame(self.all_players_data)
+
+        # Convert numeric columns for proper sorting
+        df["wins"] = pd.to_numeric(df["wins"], errors="coerce").fillna(0).astype(int)
+        df["losses"] = (
+            pd.to_numeric(df["losses"], errors="coerce").fillna(0).astype(int)
+        )
+        df["draws"] = pd.to_numeric(df["draws"], errors="coerce").fillna(0).astype(int)
+        df["spread"] = (
+            pd.to_numeric(df["spread"], errors="coerce").fillna(0).astype(int)
+        )
+
+        # Sort by: wins (desc) > draws (desc) > spread (desc)
+        df = df.sort_values(
+            by=["wins", "draws", "spread"], ascending=[False, False, False]
+        )
 
         # Reorder columns
         columns_order = [
@@ -328,7 +350,9 @@ class PlayerScraper:
         # Save to CSV in parent directory
         csv_path = self.output_dir.parent / filename
         df.to_csv(csv_path, index=False)
-        logger.info(f"Exported {len(df)} players to {csv_path}")
+        logger.info(
+            f"Exported {len(df)} players to {csv_path} (sorted by wins > draws > spread)"
+        )
 
         return csv_path
 
