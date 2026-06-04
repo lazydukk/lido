@@ -68,7 +68,7 @@ class PlayerScraper:
         logger.info(f"Seed: {header_info.get('seed')}")
         logger.info(f"Rating: {header_info.get('rating')}")
         logger.info(f"Nationality: {header_info.get('nationality')}")
-        logger.info(f"Final Standing: {header_info.get('place')} | {header_info.get('record')} | {header_info.get('spread')}")
+        logger.info(f"Final Standing: {header_info.get('final_standing')} | {header_info.get('record')} | {header_info.get('spread')}")
         
         # Add to players summary list
         self.all_players_data.append(header_info)
@@ -152,10 +152,16 @@ class PlayerScraper:
         if record_match:
             info['record'] = f"{record_match.group(1)}-{record_match.group(2)}-{record_match.group(3)}"
         
-        # Extract spread
-        spread_match = re.search(r'([\+\-]\d+)', full_text)
+        # Extract spread - get the final/total spread (not individual game spreads)
+        # Look for the spread value near "Spread" label in header
+        spread_match = re.search(r'Spread[:\s]+([\+\-]\d+)', full_text, re.IGNORECASE)
         if spread_match:
             info['spread'] = spread_match.group(1)
+        else:
+            # Fallback: try to find any spread in context
+            spread_fallback = re.search(r'([\+\-]\d+)', full_text)
+            if spread_fallback:
+                info['spread'] = spread_fallback.group(1)
         
         return info
     
@@ -209,15 +215,14 @@ class PlayerScraper:
             # Extract scores (e.g., "475-434")
             score_match = re.search(r'(\d+)\s*-\s*(\d+)', row_text)
             if score_match:
-                player_score = score_match.group(1)
-                opponent_score = score_match.group(2)
+                player_score = int(score_match.group(1))
+                opponent_score = int(score_match.group(2))
+                # Calculate spread as the difference (positive for wins, negative for losses)
+                spread = player_score - opponent_score
             else:
                 player_score = ''
                 opponent_score = ''
-            
-            # Extract spread
-            spread_match = re.search(r'([\+\-]\d+)', row_text)
-            spread = spread_match.group(1) if spread_match else ''
+                spread = ''
             
             # Extract YouTube link
             youtube_link = ''
