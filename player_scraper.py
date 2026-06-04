@@ -22,11 +22,12 @@ class PlayerScraper:
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         })
+        self.all_players_data = []  # Store all player summary data
     
-    def scrape_player(self, player_id: int) -> Optional[str]:
+    def scrape_player(self, player_id: int) -> Optional[Dict]:
         """
         Scrape a single player profile and save to CSV
-        Returns the player name if successful, None if failed
+        Returns the player summary dict if successful, None if failed
         """
         url = f"{self.BASE_URL}/player-{player_id}.html"
         logger.info(f"Scraping player {player_id}: {url}")
@@ -69,7 +70,10 @@ class PlayerScraper:
         logger.info(f"Nationality: {header_info.get('nationality')}")
         logger.info(f"Final Standing: {header_info.get('place')} | {header_info.get('record')} | {header_info.get('spread')}")
         
-        return player_name
+        # Add to players summary list
+        self.all_players_data.append(header_info)
+        
+        return header_info
     
     def _fetch_page(self, url: str) -> Optional[BeautifulSoup]:
         """Fetch and parse a webpage"""
@@ -105,10 +109,15 @@ class PlayerScraper:
             'seed': '',
             'rating': '',
             'nationality': '',
-            'place': '',
+            'final_standing': '',
             'record': '',
             'spread': ''
         }
+        
+        # Get player name
+        name = self._extract_player_name(soup)
+        if name:
+            info['name'] = name
         
         # Find the section with seed, rating, nationality
         # Looking for text like "Seed #2 • Rating: 2162 • AUS"
@@ -136,7 +145,7 @@ class PlayerScraper:
         if place_match:
             place_num = place_match.group(1)
             place_map = {'1': '1st', '2': '2nd', '3': '3rd'}
-            info['place'] = place_map.get(place_num, f"{place_num}th")
+            info['final_standing'] = place_map.get(place_num, f"{place_num}th")
         
         # Extract record (W-L-D format)
         record_match = re.search(r'(\d+)-(\d+)-(\d+)', full_text)
@@ -241,19 +250,44 @@ class PlayerScraper:
         """Scrape multiple players and return mapping of player_id -> player_name"""
         results = {}
         for player_id in player_ids:
-            player_name = self.scrape_player(player_id)
-            if player_name:
-                results[player_id] = player_name
+            player_info = self.scrape_player(player_id)
+            if player_info:
+                results[player_id] = player_info['name']
         
         return results
     
     def scrape_all_players(self, total_players: int = 43) -> Dict[int, str]:
         """Scrape all players by ID"""
         logger.info(f"Starting to scrape {total_players} players...")
+        self.all_players_data = []  # Reset
         results = self.scrape_multiple_players(range(1, total_players + 1))
         logger.info(f"Completed scraping {len(results)}/{total_players} players")
         
         return results
+    
+    def export_all_players_summary(self, filename: str = "all_players_summary.csv") -> Path:
+        """
+        Export all scraped player summary data to a single CSV file
+        
+        Columns: seed | name | nationality | rating | final_standing | record | spread
+        """
+        if not self.all_players_data:
+            logger.warning("No player data to export. Run scrape_all_players() first.")
+            return None
+        
+        # Create DataFrame
+        df = pd.DataFrame(self.all_players_data)
+        
+        # Reorder columns
+        columns_order = ['seed', 'name', 'nationality', 'rating', 'final_standing', 'record', 'spread']
+        df = df[columns_order]
+        
+        # Save to CSV in parent directory
+        csv_path = self.output_dir.parent / filename
+        df.to_csv(csv_path, index=False)
+        logger.info(f"Exported {len(df)} players to {csv_path}")
+        
+        return csv_path
 
 
 # ============ USAGE ============
@@ -268,3 +302,6 @@ if __name__ == "__main__":
     
     # Scrape all players
     scraper.scrape_all_players(total_players=43)
+    
+    # Export summary of all players
+    scraper.export_all_players_summary()
