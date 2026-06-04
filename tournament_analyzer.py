@@ -14,7 +14,7 @@ class TournamentAnalyzer:
     def __init__(self, data_dir: str = "causeway_2026_data"):
         self.data_dir = Path(data_dir)
         self.output_dir = self.data_dir / "analysis"
-        self.output_dir.mkdir(exist_ok=True)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
         
         # Load all data
         self.standings = self._load_data("division_standings.csv")
