@@ -124,53 +124,52 @@ class PlayerScraper:
         if name:
             info["name"] = name
 
-        # Find the section with seed, rating, nationality
-        # Looking for text like "Seed #2 • Rating: 2162 • AUS"
-        text_elements = soup.find_all(string=True)
-        full_text = " ".join(text_elements)
+        # Find the header section - usually contains seed, rating, nationality info
+        # Get text from the top portion of the page before "Games" section
+        header_section = soup.find(["section", "div"], class_=["profile", "player-header", "header"])
+        if not header_section:
+            # Fallback: get first significant text block
+            header_section = soup
+
+        header_text = header_section.get_text(separator=" ")
 
         # Extract seed
-        seed_match = re.search(r"Seed\s*#?(\d+)", full_text, re.IGNORECASE)
+        seed_match = re.search(r"Seed\s*#?(\d+)", header_text, re.IGNORECASE)
         if seed_match:
             info["seed"] = seed_match.group(1)
 
         # Extract rating
-        rating_match = re.search(r"Rating:\s*(\d+)", full_text, re.IGNORECASE)
+        rating_match = re.search(r"Rating:\s*(\d+)", header_text, re.IGNORECASE)
         if rating_match:
             info["rating"] = rating_match.group(1)
 
-        # Extract nationality (usually a 3-letter code)
-        nationality_match = re.search(r"\b([A-Z]{3})\b", full_text)
+        # Extract nationality (usually a 3-letter code after rating)
+        nationality_match = re.search(r"Rating:\s*\d+\s*•?\s*([A-Z]{3})\b", header_text, re.IGNORECASE)
+        if not nationality_match:
+            # Alternative: just find any 3-letter code
+            nationality_match = re.search(r"\b([A-Z]{3})\b", header_text)
         if nationality_match:
             info["nationality"] = nationality_match.group(1)
 
         # Find the final standing section (1st, 26-10-0, +1847)
         # Look for place (ordinal numbers)
-        place_match = re.search(
-            r"(\d+)(?:st|nd|rd|th)\s+Place", full_text, re.IGNORECASE
-        )
+        place_match = re.search(r"(\d+)(?:st|nd|rd|th)\s+(?:Place|place)", header_text, re.IGNORECASE)
         if place_match:
             place_num = place_match.group(1)
             place_map = {"1": "1st", "2": "2nd", "3": "3rd"}
             info["final_standing"] = place_map.get(place_num, f"{place_num}th")
 
-        # Extract record (W-L-D format)
-        record_match = re.search(r"(\d+)-(\d+)-(\d+)", full_text)
+        # Extract record (W-L-D format) - look for pattern like 26-10-0
+        record_match = re.search(r"(\d+)-(\d+)-(\d+)", header_text)
         if record_match:
-            info["record"] = (
-                f"{record_match.group(1)}-{record_match.group(2)}-{record_match.group(3)}"
-            )
+            info["record"] = f"{record_match.group(1)}-{record_match.group(2)}-{record_match.group(3)}"
 
-        # Extract spread - get the final/total spread (not individual game spreads)
-        # Look for the spread value near "Spread" label in header
-        spread_match = re.search(r"Spread[:\s]+([\+\-]\d+)", full_text, re.IGNORECASE)
+        # Extract spread - look for a large spread value (3+ digits) in the header
+        # Spreads are typically large numbers like +1847, +1500, -1200, etc.
+        # Pattern: look for +/- followed by 3 or more digits
+        spread_match = re.search(r"([\+\-]\d{3,})", header_text)
         if spread_match:
             info["spread"] = spread_match.group(1)
-        else:
-            # Fallback: try to find any spread in context
-            spread_fallback = re.search(r"([\+\-]\d+)", full_text)
-            if spread_fallback:
-                info["spread"] = spread_fallback.group(1)
 
         return info
 
