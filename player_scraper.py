@@ -72,7 +72,7 @@ class PlayerScraper:
         logger.info(f"Rating: {header_info.get('rating')}")
         logger.info(f"Nationality: {header_info.get('nationality')}")
         logger.info(
-            f"Final Standing: {header_info.get('final_standing')} | {header_info.get('record')} | {header_info.get('spread')}"
+            f"Final Standing: {header_info.get('final_standing')} | {header_info.get('wins')}-{header_info.get('losses')}-{header_info.get('draws')} | {header_info.get('spread')}"
         )
 
         # Add to players summary list
@@ -115,7 +115,9 @@ class PlayerScraper:
             "rating": "",
             "nationality": "",
             "final_standing": "",
-            "record": "",
+            "wins": "",
+            "losses": "",
+            "draws": "",
             "spread": "",
         }
 
@@ -162,7 +164,9 @@ class PlayerScraper:
         # Extract record (W-L-D format) - look for pattern like 26-10-0
         record_match = re.search(r"(\d+)-(\d+)-(\d+)", header_text)
         if record_match:
-            info["record"] = f"{record_match.group(1)}-{record_match.group(2)}-{record_match.group(3)}"
+            info["wins"] = record_match.group(1)
+            info["losses"] = record_match.group(2)
+            info["draws"] = record_match.group(3)
 
         # Extract spread - look for a large spread value (3+ digits) in the header
         # Spreads are typically large numbers like +1847, +1500, -1200, etc.
@@ -286,7 +290,7 @@ class PlayerScraper:
         """
         Export all scraped player summary data to a single CSV file
 
-        Columns: seed | name | nationality | rating | final_standing | record | spread
+        Columns: seed | name | nationality | rating | final_standing | wins | losses | draws | spread
         """
         if not self.all_players_data:
             logger.warning("No player data to export. Run scrape_all_players() first.")
@@ -302,7 +306,9 @@ class PlayerScraper:
             "nationality",
             "rating",
             "final_standing",
-            "record",
+            "wins",
+            "losses",
+            "draws",
             "spread",
         ]
         df = df[columns_order]
